@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# CareerOS generated datases
+/data/bronze/
+/data/silver/
+/data/gold/
+
+# Local learning exercises
+/practice/

@@ -28,3 +28,12 @@ def test_failed_step_records_the_exception():
     assert span.status == SpanStatus.FAILED
     assert span.error == "ValueError: Himalayas API is down"
     assert span.ended_at is not None
+
+def test_step_can_flag_itself():
+    trace = PipelineTrace()
+
+    with trace_step(trace, "validate_jobs") as span:
+        span.status = SpanStatus.FLAGGED
+        span.error = "No jobs returned"
+
+    assert trace.spans[0].status == SpanStatus.FLAGGED  # not overwritten to OK

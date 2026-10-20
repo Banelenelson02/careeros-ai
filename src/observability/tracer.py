@@ -12,7 +12,8 @@ def trace_step(trace: PipelineTrace, step_name: str):
 
     try:
         yield span
-        span.status = SpanStatus.OK
+        if span.status == SpanStatus.RUNNING:  # the step didn't set its own status
+            span.status = SpanStatus.OK
     except Exception as exc:
         span.status = SpanStatus.FAILED
         span.error = f"{type(exc).__name__}: {exc}"

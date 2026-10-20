@@ -4,6 +4,13 @@ import requests
 from src.extract import jobs_api
 from src.observability.models import PipelineTrace, SpanStatus
 
+GOOD_JOB = {
+    "title": "Data Engineer",
+    "companyName": "Example Co",
+    "applicationLink": "https://example.com/apply",
+    "guid": "abc-123",
+}
+
 
 def test_failed_request_is_traced(monkeypatch):
     def fake_get(*args, **kwargs):
@@ -27,7 +34,7 @@ def test_successful_extraction_is_traced(monkeypatch, tmp_path):
             pass
 
         def json(self):
-            return {"jobs": [{"title": "Data Engineer"}]}
+            return {"jobs": [GOOD_JOB]}
 
     monkeypatch.setattr(jobs_api.requests, "get", lambda *a, **k: FakeResponse())
     monkeypatch.setattr(
@@ -37,5 +44,31 @@ def test_successful_extraction_is_traced(monkeypatch, tmp_path):
 
     data, _ = jobs_api.run_extraction(trace)
 
-    assert [s.step_name for s in trace.spans] == ["fetch_jobs", "save_bronze"]
+    assert [s.step_name for s in trace.spans] == [
+        "fetch_jobs",
+        "save_bronze",
+        "validate_jobs",
+    ]
     assert all(s.status == SpanStatus.OK for s in trace.spans)
+
+
+def test_empty_result_is_flagged_not_failed(monkeypatch, tmp_path):
+    class EmptyResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"jobs": []}
+
+    monkeypatch.setattr(jobs_api.requests, "get", lambda *a, **k: EmptyResponse())
+    monkeypatch.setattr(
+        jobs_api, "save_bronze", lambda data: tmp_path / "jobs.json"
+    )
+    trace = PipelineTrace()
+
+    jobs_api.run_extraction(trace)  # must NOT raise
+
+    last = trace.spans[-1]
+    assert last.step_name == "validate_jobs"
+    assert last.status == SpanStatus.FLAGGED
+    assert last.error == "No jobs returned"

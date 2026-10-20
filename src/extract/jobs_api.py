@@ -1,10 +1,11 @@
 import requests
 
-from src.extract.bronze_writer import save_bronze
-from src.observability.models import PipelineTrace
-from src.observability.tracer import trace_step
 from src.database.connection import get_connection
+from src.extract.bronze_writer import save_bronze
+from src.extract.validation import check_jobs
+from src.observability.models import PipelineTrace, SpanStatus
 from src.observability.store import ensure_tables, save_trace
+from src.observability.tracer import trace_step
 
 URL = "https://himalayas.app/jobs/api"
 
@@ -18,6 +19,12 @@ def run_extraction(trace: PipelineTrace, url: str = URL, limit: int = 5):
 
     with trace_step(trace, "save_bronze"):
         file_path = save_bronze(data)
+
+    with trace_step(trace, "validate_jobs") as span:
+        problem = check_jobs(data)
+        if problem:
+            span.status = SpanStatus.FLAGGED
+            span.error = problem
 
     return data, file_path
 

@@ -3,6 +3,8 @@ import requests
 from src.extract.bronze_writer import save_bronze
 from src.observability.models import PipelineTrace
 from src.observability.tracer import trace_step
+from src.database.connection import get_connection
+from src.observability.store import ensure_tables, save_trace
 
 URL = "https://himalayas.app/jobs/api"
 
@@ -38,3 +40,7 @@ if __name__ == "__main__":
         print("Jobs received:", len(data.get("jobs", [])))
     finally:
         print_trace(trace)  # prints even when a step failed
+        with get_connection() as connection:
+            ensure_tables(connection)
+            save_trace(connection, trace)
+        print("Trace saved to Postgres.")
